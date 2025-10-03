@@ -28,6 +28,7 @@ function HomeContent() {
   const [notifications, setNotifications] = useState([]);
   const [cartBump, setCartBump] = useState(false);
   const [products, setProducts] = useState([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
 
   const { addToCart, cart, cartCount, clearCart, removeFromCart, updateQuantity } = useCart();
 
@@ -82,6 +83,9 @@ function HomeContent() {
 
     async function loadProducts() {
       try {
+        if (mounted) {
+          setIsLoadingProducts(true);
+        }
         const response = await fetch("/api/products");
         if (!response.ok) throw new Error("No se pudieron obtener los productos");
         const data = await response.json();
@@ -91,6 +95,10 @@ function HomeContent() {
       } catch (error) {
         console.error(error);
         addNotification("No se pudieron cargar los productos.");
+      } finally {
+        if (mounted) {
+          setIsLoadingProducts(false);
+        }
       }
     }
 
@@ -289,6 +297,7 @@ function HomeContent() {
           onGenderChange={handleGenderChange}
           onAddToCart={handleAddToCart}
           onQuickView={setQuickViewProduct}
+          isLoading={isLoadingProducts}
         />
         <AboutSection />
         <Newsletter

@@ -7,7 +7,7 @@ const genderFilters = [
   { id: "nino", label: "Ni\u00f1os" }
 ];
 
-export default function Products({ products, selectedGender, onGenderChange, onAddToCart, onQuickView }) {
+export default function Products({ products, selectedGender, onGenderChange, onAddToCart, onQuickView, isLoading }) {
   return (
     <section className="products" id="products">
       <div className="container">
@@ -26,7 +26,9 @@ export default function Products({ products, selectedGender, onGenderChange, onA
           ))}
         </div>
         <div className="products-grid" id="productsGrid">
-          {products.length === 0 ? (
+          {isLoading ? (
+            <p className="no-results">Cargando productos...</p>
+          ) : products.length === 0 ? (
             <p className="no-results">No hay productos disponibles.</p>
           ) : (
             products.map((product) => (
