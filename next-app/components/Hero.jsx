@@ -1,33 +1,24 @@
-﻿"use client";
+"use client";
 
 export default function Hero({ onExplore }) {
   return (
     <section className="hero" id="home">
       <div className="hero-content">
-        <h1 className="hero-title">Artesanías Únicas para Tu Estilo</h1>
+        <h1 className="hero-title">Artesanias Unicas para Tu Estilo</h1>
         <p className="hero-subtitle">
-          Descubre nuestra colección exclusiva de joyería y accesorios hechos a mano
+          Descubre nuestra coleccion exclusiva de joyeria y accesorios hechos a mano
         </p>
         <button className="cta-button" type="button" onClick={onExplore}>
-          Explorar Colección
+          Explorar Coleccion
         </button>
       </div>
       <div className="hero-image">
-        <div className="floating-elements">
-          <div className="floating-item item-1">
-            <i className="fas fa-ring" aria-hidden="true" />
-          </div>
-          <div className="floating-item item-2">
-            <i className="fas fa-gem" aria-hidden="true" />
-          </div>
-          <div className="floating-item item-3">
-            <i className="fas fa-crown" aria-hidden="true" />
-          </div>
-        </div>
+        <img
+          src="/images/placeholders/Artesanias-LeidyLuana1.jpg"
+          alt="Artesanias Leidy Luana"
+          className="hero-photo"
+        />
       </div>
     </section>
   );
 }
-
-
-
