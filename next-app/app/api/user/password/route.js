@@ -9,9 +9,9 @@ export async function PUT(request) {
     }
 
     const result = await updateUserPassword(userId, current, next);
-    return NextResponse.json({ message: "Contraseña actualizada", ...result });
+    return NextResponse.json({ message: "ContraseÃ±a actualizada", ...result });
   } catch (error) {
     console.error("[PUT /api/user/password]", error);
-    return NextResponse.json({ message: error.message || "Error al actualizar contraseña." }, { status: 500 });
+    return NextResponse.json({ message: error.message || "Error al actualizar contraseÃ±a." }, { status: 500 });
   }
 }
