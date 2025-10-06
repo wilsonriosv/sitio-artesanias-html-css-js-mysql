@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 
 export default function Header({ cartCount, cartBump, onOpenCart, onOpenSearch }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -115,32 +116,72 @@ export default function Header({ cartCount, cartBump, onOpenCart, onOpenSearch }
                 <span className="sr-only">Abrir menu de usuario</span>
               </button>
               <div className="user-menu-dropdown" role="menu">
-                <button type="button" className="user-menu-item" role="menuitem" onClick={() => setUserMenuOpen(false)}>
+                <Link
+                  href="/login"
+                  className="user-menu-item"
+                  role="menuitem"
+                  onClick={() => setUserMenuOpen(false)}
+                >
                   Iniciar sesion
-                </button>
-                <button type="button" className="user-menu-item" role="menuitem" onClick={() => setUserMenuOpen(false)}>
+                </Link>
+                <Link
+                  href="/register"
+                  className="user-menu-item"
+                  role="menuitem"
+                  onClick={() => setUserMenuOpen(false)}
+                >
                   Registrarse
-                </button>
-                <button type="button" className="user-menu-item" role="menuitem" onClick={() => setUserMenuOpen(false)}>
+                </Link>
+                <Link
+                  href="/settings"
+                  className="user-menu-item"
+                  role="menuitem"
+                  onClick={() => setUserMenuOpen(false)}
+                >
                   Configuracion de tema
-                </button>
-                <button type="button" className="user-menu-item" role="menuitem" onClick={() => setUserMenuOpen(false)}>
+                </Link>
+                <Link
+                  href="/profile"
+                  className="user-menu-item"
+                  role="menuitem"
+                  onClick={() => setUserMenuOpen(false)}
+                >
                   Ver o actualizar perfil
-                </button>
+                </Link>
                 <div className="user-menu-divider" role="separator" />
                 <p className="user-menu-label">Accesos de administracion</p>
-                <button type="button" className="user-menu-item" role="menuitem" onClick={() => setUserMenuOpen(false)}>
+                <Link
+                  href="/dashboard"
+                  className="user-menu-item"
+                  role="menuitem"
+                  onClick={() => setUserMenuOpen(false)}
+                >
                   Panel de control
-                </button>
-                <button type="button" className="user-menu-item" role="menuitem" onClick={() => setUserMenuOpen(false)}>
+                </Link>
+                <Link
+                  href="/dashboard/products"
+                  className="user-menu-item"
+                  role="menuitem"
+                  onClick={() => setUserMenuOpen(false)}
+                >
                   Gestionar productos
-                </button>
-                <button type="button" className="user-menu-item" role="menuitem" onClick={() => setUserMenuOpen(false)}>
+                </Link>
+                <Link
+                  href="/dashboard/orders"
+                  className="user-menu-item"
+                  role="menuitem"
+                  onClick={() => setUserMenuOpen(false)}
+                >
                   Gestionar pedidos
-                </button>
-                <button type="button" className="user-menu-item" role="menuitem" onClick={() => setUserMenuOpen(false)}>
+                </Link>
+                <Link
+                  href="/dashboard/customers"
+                  className="user-menu-item"
+                  role="menuitem"
+                  onClick={() => setUserMenuOpen(false)}
+                >
                   Gestion general de tienda
-                </button>
+                </Link>
               </div>
             </div>
             <button
