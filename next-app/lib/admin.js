@@ -1,4 +1,4 @@
-﻿import { query } from "@/lib/db";
+import { query } from "@/lib/db";
 
 function formatCurrency(value) {
   return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(value ?? 0);
@@ -25,7 +25,7 @@ export async function getAdminOverview() {
        LIMIT 5`
     );
     const lowStock = await query(
-      `SELECT id, name, sku, stock
+      `SELECT id, name, slug, stock, description
        FROM products
        WHERE stock <= 5
        ORDER BY stock ASC
@@ -63,7 +63,8 @@ export async function getAdminOverview() {
       lowStock: lowStock.map((item) => ({
         id: item.id,
         name: item.name,
-        sku: item.sku,
+        slug: item.slug,
+        sku: item.slug ?? String(item.id),
         stock: item.stock
       }))
     });
@@ -84,7 +85,7 @@ export async function getAdminOverview() {
 export async function getProductsOverview() {
   try {
     const products = await query(
-      `SELECT id, name, sku, price_cents, stock, category, active
+      `SELECT id, name, slug, description, price_cents, stock, category
        FROM products
        ORDER BY created_at DESC`
     );
@@ -96,11 +97,12 @@ export async function getProductsOverview() {
       products: products.map((product) => ({
         id: product.id,
         name: product.name,
-        sku: product.sku,
+        slug: product.slug,
+        sku: product.slug ?? String(product.id),
         category: product.category,
         price: (product.price_cents ?? 0) / 100,
         stock: product.stock ?? 0,
-        active: Boolean(product.active)
+        description: product.description ?? ""
       })),
       categories
     };
@@ -211,6 +213,7 @@ export async function saveProduct(product) {
     const {
       id,
       name,
+      slug,
       sku,
       price,
       stock,
@@ -219,27 +222,57 @@ export async function saveProduct(product) {
       active = true
     } = product;
 
-    const priceCents = Math.round(Number(price ?? 0) * 100);
+    const trimmedName = (name ?? "").trim();
+    const trimmedSlug = (slug ?? "").trim();
+    const trimmedSku = (sku ?? "").trim() || trimmedSlug || trimmedName;
+    const normalizedCategory = (category ?? "").trim();
+    const numericPrice = Number(price ?? 0);
+    const priceCents = Number.isFinite(numericPrice) ? Math.max(0, Math.round(numericPrice * 100)) : 0;
+    const numericStockValue = Number(stock ?? 0);
+    const stockQuantity = Number.isFinite(numericStockValue) ? numericStockValue : 0;
     const now = new Date();
+
+    if (!trimmedName) {
+      throw new Error("El nombre del producto es obligatorio.");
+    }
+
+    if (!trimmedSlug) {
+      throw new Error("Falta el identificador (slug) del producto.");
+    }
 
     if (id) {
       await query(
         `UPDATE products
-         SET name = ?, sku = ?, price_cents = ?, stock = ?, category = ?, description = ?, active = ?, updated_at = ?
+         SET name = ?, slug = ?, price_cents = ?, stock = ?, category = ?, description = ?, active = ?, updated_at = ?
          WHERE id = ?`,
-        [name, sku, priceCents, stock, category, description, active ? 1 : 0, now, id]
+        [trimmedName, trimmedSlug, priceCents, stockQuantity, normalizedCategory, description, active ? 1 : 0, now, id]
       );
-      return { updated: true };
+      return { updated: true, slug: trimmedSlug, sku: trimmedSku };
     }
 
     const result = await query(
-      `INSERT INTO products (name, sku, price_cents, stock, category, description, active, created_at, updated_at)
+      `INSERT INTO products (name, slug, price_cents, stock, category, description, active, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [name, sku, priceCents, stock, category, description, active ? 1 : 0, now, now]
+      [trimmedName, trimmedSlug, priceCents, stockQuantity, normalizedCategory, description, active ? 1 : 0, now, now]
     );
-    return { created: true, id: result.insertId };
+    return { created: true, id: result.insertId, slug: trimmedSlug, sku: trimmedSku };
   } catch (error) {
     console.error("[admin.saveProduct]", error);
     throw new Error("No se pudo guardar el producto.");
   }
 }
+
+
+
+
+
+export async function deleteProduct(id) {
+  try {
+    await query("DELETE FROM products WHERE id = ?", [id]);
+    return { deleted: true };
+  } catch (error) {
+    console.error("[admin.deleteProduct]", error);
+    throw new Error("No se pudo eliminar el producto.");
+  }
+}
+

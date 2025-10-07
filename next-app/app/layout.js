@@ -1,5 +1,6 @@
-﻿import "./globals.css";
+import "./globals.css";
 import { Poppins } from "next/font/google";
+import { AuthProvider } from "@/components/AuthContext";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -7,9 +8,9 @@ const poppins = Poppins({
 });
 
 export const metadata = {
-  title: "Artesanías Bella Vista - Tienda Online",
+  title: "Artesanias Bella Vista - Tienda Online",
   description:
-    "Descubre piezas de joyería y accesorios artesanales únicos de Artesanías Bella Vista. Compra online con confianza."
+    "Descubre piezas de joyeria y accesorios artesanales unicos de Artesanias Bella Vista. Compra online con confianza."
 };
 
 export default function RootLayout({ children }) {
@@ -21,7 +22,9 @@ export default function RootLayout({ children }) {
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
         />
       </head>
-      <body className={poppins.className}>{children}</body>
+      <body className={poppins.className}>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

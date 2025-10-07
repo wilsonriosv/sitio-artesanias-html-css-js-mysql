@@ -29,8 +29,9 @@ export async function PUT(request) {
       return NextResponse.json({ message: "Falta el identificador de usuario." }, { status: 400 });
     }
 
-    const result = await updateUserProfile(userId, data);
-    return NextResponse.json({ message: "Perfil actualizado", ...result });
+    await updateUserProfile(userId, data);
+    const user = await getUserById(userId);
+    return NextResponse.json({ message: "Perfil actualizado", user });
   } catch (error) {
     console.error("[PUT /api/user/profile]", error);
     return NextResponse.json({ message: error.message || "Error al actualizar perfil." }, { status: 500 });

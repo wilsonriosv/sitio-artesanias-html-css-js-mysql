@@ -1,4 +1,4 @@
-import crypto from "crypto";
+﻿import crypto from "crypto";
 import { query } from "@/lib/db";
 
 const HASH_ALGORITHM = "scrypt";
@@ -7,7 +7,7 @@ const PASSWORD_MIN_LENGTH = 8;
 
 function ensurePassword(password) {
   if (!password || password.length < PASSWORD_MIN_LENGTH) {
-    throw new Error(`La contraseña debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres.`);
+    throw new Error(`La contrasena debe tener al menos ${PASSWORD_MIN_LENGTH} caracteres.`);
   }
 }
 
@@ -26,27 +26,51 @@ export function verifyPassword(password, storedHash) {
   return crypto.timingSafeEqual(Buffer.from(digest, "hex"), Buffer.from(derivedKey, "hex"));
 }
 
+export function mapUserRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    role: row.role,
+    status: row.status,
+    phone: row.phone,
+    address: row.address,
+    city: row.city,
+    country: row.country,
+    photoUrl: row.photo_url ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 export async function getUserByEmail(email) {
   const rows = await query(
-    "SELECT id, name, email, password_hash, role, status, created_at FROM users WHERE email = ? LIMIT 1",
+    `SELECT id, name, email, password_hash, role, status, photo_url, created_at, updated_at
+       FROM users WHERE email = ? LIMIT 1`,
     [email]
   );
-  return rows[0] ?? null;
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    ...mapUserRow(row),
+    password_hash: row.password_hash
+  };
 }
 
 export async function getUserById(id) {
   const rows = await query(
-    `SELECT id, name, email, role, status, phone, address, city, country, created_at, updated_at
-     FROM users WHERE id = ? LIMIT 1`,
+    `SELECT id, name, email, role, status, phone, address, city, country, photo_url, created_at, updated_at
+       FROM users WHERE id = ? LIMIT 1`,
     [id]
   );
-  return rows[0] ?? null;
+  return mapUserRow(rows[0]);
 }
 
 export async function createUser({ name, email, password, role = "customer" }) {
   const existing = await getUserByEmail(email);
   if (existing) {
-    throw new Error("El correo ya est� registrado.");
+    throw new Error("El correo ya esta registrado.");
   }
 
   const passwordHash = hashPassword(password);
@@ -57,11 +81,11 @@ export async function createUser({ name, email, password, role = "customer" }) {
     [name, email, passwordHash, role, now, now]
   );
 
-  return { id: result.insertId, name, email, role, status: "active" };
+  return { id: result.insertId, name, email, role, status: "active", photoUrl: null };
 }
 
 export async function updateUserProfile(userId, data) {
-  const fields = ["name", "email", "phone", "address", "city", "country"];
+  const fields = ["name", "email", "phone", "address", "city", "country", "photo_url"];
   const updates = [];
   const values = [];
 
@@ -97,7 +121,7 @@ export async function updateUserPassword(userId, currentPassword, nextPassword) 
 
   const isValid = verifyPassword(currentPassword, user.password_hash);
   if (!isValid) {
-    throw new Error("La contrase�a actual no es correcta.");
+    throw new Error("La contrasena actual no es correcta.");
   }
 
   const newHash = hashPassword(nextPassword);
@@ -109,11 +133,26 @@ export async function updateUserPassword(userId, currentPassword, nextPassword) 
   return { updated: true };
 }
 
+export async function getUserSettings(userId) {
+  const rows = await query(
+    `SELECT preferences FROM user_settings WHERE user_id = ? LIMIT 1`,
+    [userId]
+  );
+  const row = rows[0];
+  if (!row) return null;
+  try {
+    return JSON.parse(row.preferences);
+  } catch (error) {
+    console.error("[auth.getUserSettings]", error);
+    return null;
+  }
+}
+
 export async function updateUserSettings(userId, settings) {
   await query(
     `INSERT INTO user_settings (user_id, preferences, updated_at)
      VALUES (?, ?, ?)
-     ON DUPLICATE KEY UPDATE preferences = VALUES(preferences), updated_at = VALUES(updated_at)` ,
+     ON DUPLICATE KEY UPDATE preferences = VALUES(preferences), updated_at = VALUES(updated_at)`,
     [userId, JSON.stringify(settings), new Date()]
   );
   return { saved: true };
@@ -126,7 +165,7 @@ export async function createPasswordResetRequest(email) {
   }
 
   const token = crypto.randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hora
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 60);
 
   await query(
     `INSERT INTO password_resets (user_id, token, expires_at)

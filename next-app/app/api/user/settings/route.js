@@ -1,5 +1,20 @@
-import { NextResponse } from "next/server";
-import { updateUserSettings } from "@/lib/auth";
+﻿import { NextResponse } from "next/server";
+import { getUserSettings, updateUserSettings } from "@/lib/auth";
+
+export async function GET(request) {
+  try {
+    const userId = request.nextUrl.searchParams.get("userId");
+    if (!userId) {
+      return NextResponse.json({ message: "Falta el identificador de usuario." }, { status: 400 });
+    }
+
+    const preferences = await getUserSettings(userId);
+    return NextResponse.json({ preferences: preferences ?? null });
+  } catch (error) {
+    console.error("[GET /api/user/settings]", error);
+    return NextResponse.json({ message: "No se pudieron obtener las preferencias." }, { status: 500 });
+  }
+}
 
 export async function PUT(request) {
   try {
@@ -15,3 +30,5 @@ export async function PUT(request) {
     return NextResponse.json({ message: error.message || "Error al guardar preferencias." }, { status: 500 });
   }
 }
+
+

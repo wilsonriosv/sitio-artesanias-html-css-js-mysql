@@ -2,32 +2,27 @@
 
 import Link from "next/link";
 import BackBar from "@/components/BackBar";
-import ProfileDetails from "@/components/profile/ProfileDetails";
-import { useAuth } from "@/components/AuthContext";
+import ProfilePasswordForm from "@/components/profile/ProfilePasswordForm";
 
-export default function ProfilePage() {
-  const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
-
+export default function ProfilePasswordPage() {
   return (
     <section className="dashboard-page">
       <BackBar />
       <div className="narrow-container">
         <div className="dashboard-header">
-          <h1>Mi perfil</h1>
-          <p>Gestiona tu informacion personal y la foto de tu cuenta.</p>
+          <h1>Cambiar contrasena</h1>
+          <p>Actualiza tu contrasena para mantener segura tu cuenta.</p>
         </div>
 
         <div className="dashboard-grid">
-          <ProfileDetails />
+          <ProfilePasswordForm />
         </div>
 
         <div className="panel-card info-card">
           <h2>Accesos rapidos</h2>
           <div className="profile-links">
+            <Link href="/profile">Volver al perfil</Link>
             <Link href="/orders">Ver mis pedidos</Link>
-            <Link href="/profile/password">Cambiar contrasena</Link>
-            {isAdmin && <Link href="/dashboard">Panel de administracion</Link>}
           </div>
         </div>
       </div>

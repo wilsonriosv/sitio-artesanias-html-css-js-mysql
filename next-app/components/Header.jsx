@@ -2,18 +2,28 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/AuthContext";
+
+function getInitials(name) {
+  if (!name) return "U";
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "U";
+  const [first, second] = parts;
+  const initials = [first?.[0], second?.[0]].filter(Boolean).join("").toUpperCase();
+  return initials || "U";
+}
 
 export default function Header({ cartCount, cartBump, onOpenCart, onOpenSearch }) {
+  const router = useRouter();
+  const { user, logout, isAuthenticated } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 100);
-    };
-
+    const handleScroll = () => setScrolled(window.scrollY > 100);
     handleScroll();
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
@@ -36,7 +46,6 @@ export default function Header({ cartCount, cartBump, onOpenCart, onOpenSearch }
         setUserMenuOpen(false);
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
@@ -55,12 +64,20 @@ export default function Header({ cartCount, cartBump, onOpenCart, onOpenSearch }
   const handleNavLinkClick = (event) => {
     event.preventDefault();
     const targetId = event.currentTarget.getAttribute("href");
-    const target = document.querySelector(targetId);
-    if (target) {
-      target.scrollIntoView({ behavior: "smooth" });
-    }
+    document.querySelector(targetId)?.scrollIntoView({ behavior: "smooth" });
     setMenuOpen(false);
   };
+
+  const handleLogout = () => {
+    logout();
+    setUserMenuOpen(false);
+    router.replace("/login");
+  };
+
+  const closeUserMenu = () => setUserMenuOpen(false);
+  const initials = getInitials(user?.name);
+  const avatarUrl = user?.avatarUrl || user?.avatar_url || user?.image || user?.photoUrl;
+  const isAdmin = user?.role === "admin";
 
   return (
     <header className={`header${scrolled ? " scrolled" : ""}`}>
@@ -106,82 +123,134 @@ export default function Header({ cartCount, cartBump, onOpenCart, onOpenSearch }
             </button>
             <div className={`user-menu${userMenuOpen ? " open" : ""}`} ref={userMenuRef}>
               <button
-                className="icon-btn user-menu-btn"
+                className={`icon-btn user-menu-btn${isAuthenticated ? " authenticated" : ""}`}
                 type="button"
                 onClick={() => setUserMenuOpen((prev) => !prev)}
                 aria-haspopup="true"
                 aria-expanded={userMenuOpen}
               >
-                <i className="fas fa-user-circle" aria-hidden="true" />
-                <span className="sr-only">Abrir menu de usuario</span>
+                {isAuthenticated ? (
+                  avatarUrl ? (
+                    <img src={avatarUrl} alt={user?.name || "Usuario"} className="user-avatar" />
+                  ) : (
+                    <span className="user-badge" aria-hidden="true">{initials}</span>
+                  )
+                ) : (
+                  <i className="fas fa-user-circle" aria-hidden="true" />
+                )}
+                <span className="sr-only">
+                  {isAuthenticated ? "Abrir menu de cuenta" : "Abrir menu de usuario"}
+                </span>
               </button>
               <div className="user-menu-dropdown" role="menu">
-                <Link
-                  href="/login"
-                  className="user-menu-item"
-                  role="menuitem"
-                  onClick={() => setUserMenuOpen(false)}
-                >
-                  Iniciar sesion
-                </Link>
-                <Link
-                  href="/register"
-                  className="user-menu-item"
-                  role="menuitem"
-                  onClick={() => setUserMenuOpen(false)}
-                >
-                  Registrarse
-                </Link>
-                <Link
-                  href="/settings"
-                  className="user-menu-item"
-                  role="menuitem"
-                  onClick={() => setUserMenuOpen(false)}
-                >
-                  Configuracion de tema
-                </Link>
-                <Link
-                  href="/profile"
-                  className="user-menu-item"
-                  role="menuitem"
-                  onClick={() => setUserMenuOpen(false)}
-                >
-                  Ver o actualizar perfil
-                </Link>
-                <div className="user-menu-divider" role="separator" />
-                <p className="user-menu-label">Accesos de administracion</p>
-                <Link
-                  href="/dashboard"
-                  className="user-menu-item"
-                  role="menuitem"
-                  onClick={() => setUserMenuOpen(false)}
-                >
-                  Panel de control
-                </Link>
-                <Link
-                  href="/dashboard/products"
-                  className="user-menu-item"
-                  role="menuitem"
-                  onClick={() => setUserMenuOpen(false)}
-                >
-                  Gestionar productos
-                </Link>
-                <Link
-                  href="/dashboard/orders"
-                  className="user-menu-item"
-                  role="menuitem"
-                  onClick={() => setUserMenuOpen(false)}
-                >
-                  Gestionar pedidos
-                </Link>
-                <Link
-                  href="/dashboard/customers"
-                  className="user-menu-item"
-                  role="menuitem"
-                  onClick={() => setUserMenuOpen(false)}
-                >
-                  Gestion general de tienda
-                </Link>
+                {isAuthenticated ? (
+                  <>
+                    <p className="user-menu-label">
+                      {user?.name ? `Hola, ${user.name.split(" ")[0]}` : "Tu cuenta"}
+                    </p>
+                    <Link
+                      href="/profile"
+                      className="user-menu-item"
+                      role="menuitem"
+                      onClick={closeUserMenu}
+                    >
+                      Ver o actualizar perfil
+                    </Link>
+                    <Link
+                      href="/orders"
+                      className="user-menu-item"
+                      role="menuitem"
+                      onClick={closeUserMenu}
+                    >
+                      Mis pedidos
+                    </Link>
+                    <Link
+                      href="/settings"
+                      className="user-menu-item"
+                      role="menuitem"
+                      onClick={closeUserMenu}
+                    >
+                      Preferencias y tema
+                    </Link>
+                    {isAdmin && (
+                      <>
+                        <div className="user-menu-divider" role="separator" />
+                        <p className="user-menu-label">Administracion</p>
+                        <Link
+                          href="/dashboard"
+                          className="user-menu-item"
+                          role="menuitem"
+                          onClick={closeUserMenu}
+                        >
+                          Panel principal
+                        </Link>
+                        <Link
+                          href="/dashboard/products"
+                          className="user-menu-item"
+                          role="menuitem"
+                          onClick={closeUserMenu}
+                        >
+                          Gestionar productos
+                        </Link>
+                        <Link
+                          href="/dashboard/orders"
+                          className="user-menu-item"
+                          role="menuitem"
+                          onClick={closeUserMenu}
+                        >
+                          Gestionar pedidos
+                        </Link>
+                        <Link
+                          href="/dashboard/customers"
+                          className="user-menu-item"
+                          role="menuitem"
+                          onClick={closeUserMenu}
+                        >
+                          Gestionar clientes
+                        </Link>
+                        <Link
+                          href="/dashboard/inventory"
+                          className="user-menu-item"
+                          role="menuitem"
+                          onClick={closeUserMenu}
+                        >
+                          Inventario y stock
+                        </Link>
+                        <Link
+                          href="/dashboard/analytics"
+                          className="user-menu-item"
+                          role="menuitem"
+                          onClick={closeUserMenu}
+                        >
+                          Estadisticas y reportes
+                        </Link>
+                      </>
+                    )}
+                    <div className="user-menu-divider" role="separator" />
+                    <button type="button" className="user-menu-item logout" onClick={handleLogout}>
+                      Cerrar sesion
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href="/login"
+                      className="user-menu-item"
+                      role="menuitem"
+                      onClick={closeUserMenu}
+                    >
+                      Iniciar sesion
+                    </Link>
+                    <Link
+                      href="/register"
+                      className="user-menu-item"
+                      role="menuitem"
+                      onClick={closeUserMenu}
+                    >
+                      Registrarse
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
             <button
@@ -213,4 +282,5 @@ export default function Header({ cartCount, cartBump, onOpenCart, onOpenSearch }
     </header>
   );
 }
+
 
