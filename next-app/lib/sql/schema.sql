@@ -40,6 +40,9 @@ CREATE TABLE IF NOT EXISTS products (
     gender VARCHAR(45) DEFAULT 'todos',
     stock INT UNSIGNED NOT NULL DEFAULT 0,
     image_url VARCHAR(255) NULL,
+    gallery_image_1 VARCHAR(255) NULL,
+    gallery_image_2 VARCHAR(255) NULL,
+    gallery_image_3 VARCHAR(255) NULL,
     active TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL

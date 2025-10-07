@@ -4,7 +4,7 @@ const genderFilters = [
   { id: "todos", label: "Todos" },
   { id: "mujer", label: "Mujer" },
   { id: "hombre", label: "Hombre" },
-  { id: "nino", label: "Ni\u00f1os" }
+  { id: "nino", label: "Niños" }
 ];
 
 export default function Products({ products, selectedGender, onGenderChange, onAddToCart, onQuickView, isLoading }) {
@@ -41,7 +41,7 @@ export default function Products({ products, selectedGender, onGenderChange, onA
                       type="button"
                       onClick={() => onQuickView(product)}
                     >
-                      <i className="fas fa-eye" aria-hidden="true" /> Vista R\u00e1pida
+                      <i className="fas fa-eye" aria-hidden="true" /> Vista Rápida
                     </button>
                   </div>
                 </div>

@@ -1,6 +1,23 @@
-﻿"use client";
+"use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+const ensureGallery = (values = []) =>
+  Array.from({ length: 3 }, (_, index) => {
+    const value = values[index];
+    return value ?? "";
+  });
+
+const formatProduct = (product = {}) => {
+  const gallery = ensureGallery(product.gallery);
+  const mainImage = product.mainImage ?? product.image ?? "";
+  return {
+    ...product,
+    mainImage,
+    image: product.image ?? mainImage,
+    gallery
+  };
+};
 
 const emptyProduct = (categories) => ({
   id: null,
@@ -9,11 +26,15 @@ const emptyProduct = (categories) => ({
   price: "",
   stock: "",
   category: categories[0] ?? "",
-  description: ""
+  description: "",
+  mainImage: "",
+  mainImageFile: null,
+  gallery: ["", "", ""],
+  galleryFiles: [null, null, null]
 });
 
 export default function ProductsManager({ initialProducts, categories }) {
-  const [products, setProducts] = useState(initialProducts);
+  const [products, setProducts] = useState(() => initialProducts.map(formatProduct));
   const [form, setForm] = useState(() => emptyProduct(categories));
   const [status, setStatus] = useState("");
   const [isSaving, setSaving] = useState(false);
@@ -21,15 +42,60 @@ export default function ProductsManager({ initialProducts, categories }) {
 
   const isEditing = useMemo(() => Boolean(form.id), [form.id]);
 
+  useEffect(() => {
+    setProducts(initialProducts.map(formatProduct));
+  }, [initialProducts]);
+
+  const mainImagePreview = useMemo(() => {
+    if (form.mainImageFile) {
+      return URL.createObjectURL(form.mainImageFile);
+    }
+    return form.mainImage;
+  }, [form.mainImageFile, form.mainImage]);
+
+  useEffect(() => {
+    if (!form.mainImageFile || !mainImagePreview || !mainImagePreview.startsWith("blob:")) {
+      return () => {};
+    }
+    return () => {
+      URL.revokeObjectURL(mainImagePreview);
+    };
+  }, [mainImagePreview, form.mainImageFile]);
+
+  const galleryPreviews = useMemo(
+    () =>
+      form.galleryFiles.map((file, index) => {
+        if (file) {
+          return URL.createObjectURL(file);
+        }
+        return form.gallery[index] || "";
+      }),
+    [form.galleryFiles, form.gallery]
+  );
+
+  useEffect(() => {
+    const urls = galleryPreviews.filter(
+      (preview, index) => form.galleryFiles[index] && preview && preview.startsWith("blob:")
+    );
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [galleryPreviews, form.galleryFiles]);
+
   const handleSelect = (product) => {
+    const mapped = formatProduct(product);
     setForm({
-      id: product.id,
-      name: product.name,
-      slug: product.slug ?? "",
-      price: product.price?.toString() ?? "",
-      stock: product.stock?.toString() ?? "",
-      category: product.category,
-      description: product.description ?? ""
+      id: mapped.id,
+      name: mapped.name,
+      slug: mapped.slug ?? "",
+      price: mapped.price?.toString() ?? "",
+      stock: mapped.stock?.toString() ?? "",
+      category: mapped.category,
+      description: mapped.description ?? "",
+      mainImage: mapped.mainImage ?? "",
+      mainImageFile: null,
+      gallery: ensureGallery(mapped.gallery),
+      galleryFiles: [null, null, null]
     });
     setStatus("");
     setModalOpen(true);
@@ -50,24 +116,81 @@ export default function ProductsManager({ initialProducts, categories }) {
     setStatus("");
   };
 
+  const handleMainImageChange = (event) => {
+    const [file] = event.target.files ?? [];
+    if (!file) {
+      return;
+    }
+    setForm((prev) => ({ ...prev, mainImageFile: file }));
+  };
+
+  const handleClearMainImage = () => {
+    setForm((prev) => ({ ...prev, mainImage: "", mainImageFile: null }));
+  };
+
+  const handleGalleryImageChange = (index) => (event) => {
+    const [file] = event.target.files ?? [];
+    if (!file) {
+      return;
+    }
+    setForm((prev) => {
+      const next = [...prev.galleryFiles];
+      next[index] = file;
+      return { ...prev, galleryFiles: next };
+    });
+  };
+
+  const handleClearGalleryImage = (index) => {
+    setForm((prev) => {
+      const gallery = ensureGallery(prev.gallery);
+      const galleryFiles = [...prev.galleryFiles];
+      gallery[index] = "";
+      galleryFiles[index] = null;
+      return { ...prev, gallery, galleryFiles };
+    });
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setSaving(true);
     setStatus("");
     try {
+      const formData = new FormData();
+      if (form.id) {
+        formData.append("id", String(form.id));
+      }
+      formData.append("name", form.name);
+      formData.append("slug", form.slug ?? "");
+      formData.append("price", form.price ?? "0");
+      formData.append("stock", form.stock ?? "0");
+      formData.append("category", form.category ?? "");
+      formData.append("description", form.description ?? "");
+
+      if (form.mainImageFile) {
+        formData.append("mainImage", form.mainImageFile);
+      } else if (form.mainImage) {
+        formData.append("mainImageUrl", form.mainImage);
+      }
+
+      form.gallery.forEach((value, index) => {
+        const file = form.galleryFiles[index];
+        if (file) {
+          formData.append(`galleryImage${index + 1}`, file);
+        } else if (value) {
+          formData.append(`galleryImageUrl${index + 1}`, value);
+        }
+      });
+
       const response = await fetch("/api/dashboard/products", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          price: form.price,
-          stock: Number(form.stock ?? 0)
-        })
+        body: formData
       });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.message || "No se pudo guardar el producto.");
       }
+
+      const normalizedGallery = ensureGallery(data.product.gallery);
       const saved = {
         id: data.product.id,
         name: form.name,
@@ -75,23 +198,33 @@ export default function ProductsManager({ initialProducts, categories }) {
         price: Number(form.price ?? 0),
         stock: Number(form.stock ?? 0),
         category: form.category,
-        description: form.description
+        description: form.description,
+        mainImage: data.product.mainImage ?? "",
+        image: data.product.image ?? data.product.mainImage ?? "",
+        gallery: normalizedGallery,
+        sku: data.product.sku ?? data.product.slug ?? String(data.product.id)
       };
+
       setProducts((prev) => {
         const exists = prev.findIndex((item) => item.id === saved.id);
         if (exists >= 0) {
           const clone = [...prev];
-          clone[exists] = { ...prev[exists], ...saved, sku: saved.slug ?? String(saved.id) };
+          clone[exists] = { ...prev[exists], ...saved };
           return clone;
         }
-        return [...prev, { ...saved, sku: saved.slug ?? String(saved.id) }];
+        return [...prev, saved];
       });
+
       setForm((prev) => ({
         ...prev,
         id: saved.id,
         slug: saved.slug,
         price: saved.price.toString(),
-        stock: saved.stock.toString()
+        stock: saved.stock.toString(),
+        mainImage: saved.mainImage,
+        mainImageFile: null,
+        gallery: saved.gallery,
+        galleryFiles: [null, null, null]
       }));
       setStatus("Producto guardado correctamente.");
       setModalOpen(false);
@@ -104,7 +237,7 @@ export default function ProductsManager({ initialProducts, categories }) {
 
   const handleDelete = async (product) => {
     if (!product?.id) return;
-    const confirmDelete = window.confirm(`¿Eliminar el producto "${product.name}"?`);
+    const confirmDelete = window.confirm(`Eliminar el producto "${product.name}"?`);
     if (!confirmDelete) return;
     try {
       const response = await fetch(`/api/dashboard/products?id=${product.id}`, {
@@ -137,6 +270,7 @@ export default function ProductsManager({ initialProducts, categories }) {
           <table className="panel-table interactive">
             <thead>
               <tr>
+                <th>Foto</th>
                 <th>Producto</th>
                 <th>Categoria</th>
                 <th>Precio</th>
@@ -147,13 +281,22 @@ export default function ProductsManager({ initialProducts, categories }) {
             <tbody>
               {products.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="empty-row">
+                  <td colSpan={6} className="empty-row">
                     Aun no tienes productos registrados.
                   </td>
                 </tr>
               ) : (
                 products.map((product) => (
                   <tr key={product.id}>
+                    <td>
+                      <div className="product-thumb">
+                        {product.mainImage ? (
+                          <img src={product.mainImage} alt={`Foto de ${product.name}`} loading="lazy" />
+                        ) : (
+                          <span>Sin foto</span>
+                        )}
+                      </div>
+                    </td>
                     <td>
                       <strong>{product.name}</strong>
                       <p className="panel-hint">Slug: {product.slug ?? product.id}</p>
@@ -271,6 +414,69 @@ export default function ProductsManager({ initialProducts, categories }) {
                 onChange={handleField("description")}
                 placeholder="Describe los materiales, dimensiones y cuidados"
               />
+
+              <div className="product-media-section">
+                <h3 className="product-media-title">Imagen principal</h3>
+                <div className="product-media-main">
+                  <div className="upload-thumb">
+                    {mainImagePreview ? (
+                      <img src={mainImagePreview} alt={form.name || "Imagen del producto"} />
+                    ) : (
+                      <span className="upload-thumb__placeholder">Sin imagen</span>
+                    )}
+                  </div>
+                  <div className="product-media-actions">
+                    <label className="panel-button secondary">
+                      Seleccionar imagen
+                      <input type="file" accept="image/*" onChange={handleMainImageChange} hidden />
+                    </label>
+                    {(form.mainImageFile || form.mainImage) && (
+                      <button type="button" className="panel-link" onClick={handleClearMainImage}>
+                        Quitar imagen
+                      </button>
+                    )}
+                    <p className="panel-hint">Formatos recomendados: JPG o PNG, minimo 600px por lado.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="product-media-section">
+                <h3 className="product-media-title">Galeria (hasta 3 fotos)</h3>
+                <div className="product-media-gallery">
+                  {galleryPreviews.map((preview, index) => (
+                    <div key={`gallery-${index}`} className="product-media-item">
+                      <div className="upload-thumb">
+                        {preview ? (
+                          <img src={preview} alt={`Galeria ${index + 1}`} />
+                        ) : (
+                          <span className="upload-thumb__placeholder">Sin foto</span>
+                        )}
+                      </div>
+                      <div className="product-media-actions">
+                        <label className="panel-button secondary">
+                          {preview ? "Cambiar" : "Agregar"}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleGalleryImageChange(index)}
+                            hidden
+                          />
+                        </label>
+                        {preview && (
+                          <button
+                            type="button"
+                            className="panel-link"
+                            onClick={() => handleClearGalleryImage(index)}
+                          >
+                            Quitar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="panel-hint">Las imagenes complementarias ayudan a mostrar detalles del producto.</p>
+              </div>
 
               <div className="modal-actions">
                 <button type="button" className="panel-button secondary" onClick={closeModal} disabled={isSaving}>

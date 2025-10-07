@@ -85,7 +85,7 @@ export async function getAdminOverview() {
 export async function getProductsOverview() {
   try {
     const products = await query(
-      `SELECT id, name, slug, description, price_cents, stock, category
+      `SELECT id, name, slug, description, price_cents, stock, category, image_url, gallery_image_1, gallery_image_2, gallery_image_3
        FROM products
        ORDER BY created_at DESC`
     );
@@ -94,16 +94,26 @@ export async function getProductsOverview() {
     ).then((rows) => rows.map((row) => row.category));
 
     return {
-      products: products.map((product) => ({
-        id: product.id,
-        name: product.name,
-        slug: product.slug,
-        sku: product.slug ?? String(product.id),
-        category: product.category,
-        price: (product.price_cents ?? 0) / 100,
-        stock: product.stock ?? 0,
-        description: product.description ?? ""
-      })),
+      products: products.map((product) => {
+        const gallery = [
+          product.gallery_image_1 || "",
+          product.gallery_image_2 || "",
+          product.gallery_image_3 || ""
+        ];
+        return {
+          id: product.id,
+          name: product.name,
+          slug: product.slug,
+          sku: product.slug ?? String(product.id),
+          category: product.category,
+          price: (product.price_cents ?? 0) / 100,
+          stock: product.stock ?? 0,
+          description: product.description ?? "",
+          image: product.image_url ?? "",
+          mainImage: product.image_url ?? "",
+          gallery
+        };
+      }),
       categories
     };
   } catch (error) {
@@ -208,7 +218,7 @@ export async function getCustomersOverview() {
   }
 }
 
-export async function saveProduct(product) {
+export async function saveProduct(product, images = {}) {
   try {
     const {
       id,
@@ -232,6 +242,34 @@ export async function saveProduct(product) {
     const stockQuantity = Number.isFinite(numericStockValue) ? numericStockValue : 0;
     const now = new Date();
 
+    const normalizeImageValue = (value) => {
+      if (typeof value !== "string") return null;
+      const trimmed = value.trim();
+      return trimmed ? trimmed : null;
+    };
+
+    const mainImageValue =
+      normalizeImageValue(images?.mainImage) ??
+      normalizeImageValue(images?.image) ??
+      normalizeImageValue(product.image) ??
+      normalizeImageValue(product.image_url);
+
+    let gallerySource = Array.isArray(images?.gallery) ? images.gallery : null;
+    if (!gallerySource && Array.isArray(product?.gallery)) {
+      gallerySource = product.gallery;
+    }
+    if (!gallerySource) {
+      gallerySource = [
+        product.gallery_image_1,
+        product.gallery_image_2,
+        product.gallery_image_3
+      ];
+    }
+
+    const galleryValues = Array.from({ length: 3 }, (_, index) =>
+      normalizeImageValue(gallerySource?.[index])
+    );
+
     if (!trimmedName) {
       throw new Error("El nombre del producto es obligatorio.");
     }
@@ -243,19 +281,54 @@ export async function saveProduct(product) {
     if (id) {
       await query(
         `UPDATE products
-         SET name = ?, slug = ?, price_cents = ?, stock = ?, category = ?, description = ?, active = ?, updated_at = ?
+         SET name = ?, slug = ?, price_cents = ?, stock = ?, category = ?, description = ?, image_url = ?, gallery_image_1 = ?, gallery_image_2 = ?, gallery_image_3 = ?, active = ?, updated_at = ?
          WHERE id = ?`,
-        [trimmedName, trimmedSlug, priceCents, stockQuantity, normalizedCategory, description, active ? 1 : 0, now, id]
+        [
+          trimmedName,
+          trimmedSlug,
+          priceCents,
+          stockQuantity,
+          normalizedCategory,
+          description,
+          mainImageValue,
+          galleryValues[0],
+          galleryValues[1],
+          galleryValues[2],
+          active ? 1 : 0,
+          now,
+          id
+        ]
       );
-      return { updated: true, slug: trimmedSlug, sku: trimmedSku };
+      return { updated: true, slug: trimmedSlug, sku: trimmedSku, image: mainImageValue, gallery: galleryValues };
     }
 
     const result = await query(
-      `INSERT INTO products (name, slug, price_cents, stock, category, description, active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [trimmedName, trimmedSlug, priceCents, stockQuantity, normalizedCategory, description, active ? 1 : 0, now, now]
+      `INSERT INTO products (name, slug, price_cents, stock, category, description, image_url, gallery_image_1, gallery_image_2, gallery_image_3, active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        trimmedName,
+        trimmedSlug,
+        priceCents,
+        stockQuantity,
+        normalizedCategory,
+        description,
+        mainImageValue,
+        galleryValues[0],
+        galleryValues[1],
+        galleryValues[2],
+        active ? 1 : 0,
+        now,
+        now
+      ]
     );
-    return { created: true, id: result.insertId, slug: trimmedSlug, sku: trimmedSku };
+    return {
+      created: true,
+      id: result.insertId,
+      slug: trimmedSlug,
+      sku: trimmedSku,
+      image: mainImageValue,
+      gallery: galleryValues
+    };
   } catch (error) {
     console.error("[admin.saveProduct]", error);
     throw new Error("No se pudo guardar el producto.");
