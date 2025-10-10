@@ -1,4 +1,5 @@
-import { query } from "@/lib/db";
+﻿import { query } from "@/lib/db";
+import { normalizeVariantOptions } from "@/lib/variants";
 
 function formatCurrency(value) {
   return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(value ?? 0);
@@ -85,8 +86,7 @@ export async function getAdminOverview() {
 export async function getProductsOverview() {
   try {
     const products = await query(
-      `SELECT id, name, slug, description, price_cents, stock, category, image_url, gallery_image_1, gallery_image_2, gallery_image_3
-       FROM products
+      `SELECT id, name, slug, description, price_cents, stock, category, image_url, gallery_image_1, gallery_image_2, gallery_image_3, variant_options\n       FROM products
        ORDER BY created_at DESC`
     );
     const categories = await query(
@@ -100,6 +100,8 @@ export async function getProductsOverview() {
           product.gallery_image_2 || "",
           product.gallery_image_3 || ""
         ];
+        const variantOptions = normalizeVariantOptions(product.variant_options);
+        const effectiveStock = variantOptions.enabled ? variantOptions.totalStock : (product.stock ?? 0);
         return {
           id: product.id,
           name: product.name,
@@ -107,11 +109,12 @@ export async function getProductsOverview() {
           sku: product.slug ?? String(product.id),
           category: product.category,
           price: (product.price_cents ?? 0) / 100,
-          stock: product.stock ?? 0,
+          stock: effectiveStock,
           description: product.description ?? "",
           image: product.image_url ?? "",
           mainImage: product.image_url ?? "",
-          gallery
+          gallery,
+          variantOptions
         };
       }),
       categories
@@ -229,7 +232,8 @@ export async function saveProduct(product, images = {}) {
       stock,
       category,
       description = "",
-      active = true
+      active = true,
+      variantOptions
     } = product;
 
     const trimmedName = (name ?? "").trim();
@@ -239,7 +243,21 @@ export async function saveProduct(product, images = {}) {
     const numericPrice = Number(price ?? 0);
     const priceCents = Number.isFinite(numericPrice) ? Math.max(0, Math.round(numericPrice * 100)) : 0;
     const numericStockValue = Number(stock ?? 0);
-    const stockQuantity = Number.isFinite(numericStockValue) ? numericStockValue : 0;
+    let stockQuantity = Number.isFinite(numericStockValue) ? numericStockValue : 0;
+    let variantOptionsValue = null;
+    try {
+      if (variantOptions && typeof variantOptions === "object") {
+        const enabled = Boolean(variantOptions.enabled);
+        const options = Array.isArray(variantOptions.options) ? variantOptions.options : [];
+        const variants = Array.isArray(variantOptions.variants) ? variantOptions.variants : [];
+        if (enabled && variants.length > 0) {
+          stockQuantity = variants.reduce((sum, v) => sum + (Number(v?.stock ?? 0) || 0), 0);
+        }
+        variantOptionsValue = JSON.stringify({ enabled, options, variants });
+      }
+    } catch (_) {
+      variantOptionsValue = null;
+    }
     const now = new Date();
 
     const normalizeImageValue = (value) => {
@@ -281,7 +299,7 @@ export async function saveProduct(product, images = {}) {
     if (id) {
       await query(
         `UPDATE products
-         SET name = ?, slug = ?, price_cents = ?, stock = ?, category = ?, description = ?, image_url = ?, gallery_image_1 = ?, gallery_image_2 = ?, gallery_image_3 = ?, active = ?, updated_at = ?
+         SET name = ?, slug = ?, price_cents = ?, stock = ?, category = ?, description = ?, image_url = ?, gallery_image_1 = ?, gallery_image_2 = ?, gallery_image_3 = ?, variant_options = ?, active = ?, updated_at = ?
          WHERE id = ?`,
         [
           trimmedName,
@@ -294,17 +312,18 @@ export async function saveProduct(product, images = {}) {
           galleryValues[0],
           galleryValues[1],
           galleryValues[2],
+          variantOptionsValue,
           active ? 1 : 0,
           now,
           id
         ]
       );
-      return { updated: true, slug: trimmedSlug, sku: trimmedSku, image: mainImageValue, gallery: galleryValues };
+      return { updated: true, slug: trimmedSlug, sku: trimmedSku, image: mainImageValue, gallery: galleryValues, variantOptions: variantOptionsValue ? JSON.parse(variantOptionsValue) : null };
     }
 
     const result = await query(
-      `INSERT INTO products (name, slug, price_cents, stock, category, description, image_url, gallery_image_1, gallery_image_2, gallery_image_3, active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO products (name, slug, price_cents, stock, category, description, image_url, gallery_image_1, gallery_image_2, gallery_image_3, variant_options, active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         trimmedName,
         trimmedSlug,
@@ -316,6 +335,7 @@ export async function saveProduct(product, images = {}) {
         galleryValues[0],
         galleryValues[1],
         galleryValues[2],
+        variantOptionsValue,
         active ? 1 : 0,
         now,
         now
@@ -327,7 +347,8 @@ export async function saveProduct(product, images = {}) {
       slug: trimmedSlug,
       sku: trimmedSku,
       image: mainImageValue,
-      gallery: galleryValues
+      gallery: galleryValues,
+      variantOptions: variantOptionsValue ? JSON.parse(variantOptionsValue) : null
     };
   } catch (error) {
     console.error("[admin.saveProduct]", error);
@@ -348,4 +369,7 @@ export async function deleteProduct(id) {
     throw new Error("No se pudo eliminar el producto.");
   }
 }
+
+
+
 

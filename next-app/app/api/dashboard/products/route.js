@@ -48,6 +48,79 @@ function normalizeImagePath(value) {
   return trimmed ? trimmed : null;
 }
 
+function normalizeVariantOptionsInput(input) {
+  if (!input) return [];
+
+  let source = input;
+  if (typeof source === "string") {
+    try {
+      source = JSON.parse(source);
+    } catch (error) {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(source)) {
+    return [];
+  }
+
+  return source
+    .map((option, index) => {
+      if (!option) return null;
+      const label = (option.label ?? option.name ?? option.id ?? `Opcion ${index + 1}`)
+        .toString()
+        .trim();
+      const valuesSource = option.values ?? option.options ?? [];
+      const values = Array.isArray(valuesSource)
+        ? valuesSource.map((value) => value?.toString().trim()).filter(Boolean)
+        : typeof valuesSource === "string"
+        ? valuesSource
+            .split(",")
+            .map((value) => value.trim())
+            .filter((value) => Boolean(value))
+        : [];
+
+      if (!label || values.length === 0) {
+        return null;
+      }
+
+      const id = (option.id ?? slugify(label) ?? `option-${index + 1}`).toString().trim();
+
+      return {
+        id: id || `option-${index + 1}`,
+        label,
+        values
+      };
+    })
+    .filter(Boolean);
+}
+
+function parseVariantOptionsObject(input) {
+  if (!input) return null;
+  let source = input;
+  if (typeof input === "string") {
+    try {
+      source = JSON.parse(input);
+    } catch (err) {
+      return null;
+    }
+  }
+  const enabled = Boolean(source?.enabled);
+  const options = normalizeVariantOptionsInput(source?.options ?? source?.variantOptions ?? []);
+  const variantsRaw = Array.isArray(source?.variants) ? source.variants : [];
+  const variants = variantsRaw
+    .map((variant) => {
+      if (!variant || typeof variant !== "object") return null;
+      const values = typeof variant.values === "object" && variant.values ? variant.values : variant.options;
+      if (!values || typeof values !== "object") return null;
+      const stockValue = Number(variant.stock ?? variant.quantity ?? 0);
+      const stock = Number.isFinite(stockValue) ? Math.max(0, Math.floor(stockValue)) : 0;
+      return { values, stock };
+    })
+    .filter(Boolean);
+  return { enabled, options, variants };
+}
+
 function normalizePayload(payload) {
   const name = payload.name?.trim() ?? "";
   const rawSlug = payload.slug?.trim();
@@ -64,7 +137,8 @@ function normalizePayload(payload) {
     price: payload.price,
     stock: Number(payload.stock ?? 0),
     category: payload.category?.trim() ?? "",
-    description: payload.description ?? ""
+    description: payload.description ?? "",
+    variantOptions: parseVariantOptionsObject(payload.variantOptionsJson ?? payload.variantOptions ?? payload.variant_options) ?? { enabled: false, options: [], variants: [] }
   };
 }
 
@@ -140,6 +214,7 @@ export async function POST(request) {
       return resultValue ?? requestValue ?? null;
     });
     const mainImage = result.image ?? images.mainImage ?? null;
+    const variantOptions = result.variantOptions ?? product.variantOptions ?? [];
 
     return NextResponse.json({
       message: "Producto guardado",
@@ -150,7 +225,8 @@ export async function POST(request) {
         sku: result.sku ?? product.sku,
         mainImage: mainImage ?? "",
         image: mainImage ?? "",
-        gallery: mergedGallery
+        gallery: mergedGallery,
+        variantOptions
       }
     });
   } catch (error) {

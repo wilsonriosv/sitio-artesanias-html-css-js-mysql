@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 const genderFilters = [
   { id: "todos", label: "Todos" },
@@ -53,7 +53,13 @@ export default function Products({ products, selectedGender, onGenderChange, onA
                     <button
                       className="add-to-cart"
                       type="button"
-                      onClick={() => onAddToCart(product)}
+                      onClick={() => {
+                        if ((Array.isArray(product.variantOptions) && product.variantOptions.length > 0) || (product.variantOptions && product.variantOptions.enabled)) {
+                          onQuickView(product);
+                          return;
+                        }
+                        onAddToCart(product);
+                      }}
                     >
                       <i className="fas fa-shopping-cart" aria-hidden="true" />
                       <span className="sr-only">Agregar al carrito</span>
@@ -68,3 +74,4 @@ export default function Products({ products, selectedGender, onGenderChange, onA
     </section>
   );
 }
+

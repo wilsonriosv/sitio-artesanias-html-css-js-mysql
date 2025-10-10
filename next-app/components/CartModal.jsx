@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCart } from "@/components/CartContext";
 import { useEffect } from "react";
@@ -29,19 +29,19 @@ export default function CartModal({
     }
   };
 
-  const handleQuantityChange = (id, delta) => {
+  const handleQuantityChange = (uid, delta) => {
     if (onChangeQuantity) {
-      onChangeQuantity(id, delta);
+      onChangeQuantity(uid, delta);
     } else {
-      updateQuantity(id, delta);
+      updateQuantity(uid, delta);
     }
   };
 
-  const handleRemove = (id) => {
+  const handleRemove = (uid) => {
     if (onRemoveItem) {
-      onRemoveItem(id);
+      onRemoveItem(uid);
     } else {
-      removeFromCart(id);
+      removeFromCart(uid);
     }
   };
 
@@ -59,22 +59,31 @@ export default function CartModal({
             <p className="empty-cart">Tu carrito está vacío</p>
           ) : (
             cart.map((item) => (
-              <div className="cart-item" key={item.id}>
+              <div className="cart-item" key={item.uid}>
                 <img src={item.image} alt={item.name} loading="lazy" />
                 <div className="cart-item-info">
                   <h4>{item.name}</h4>
+                  {item.selectedOptions?.length > 0 && (
+                    <ul className="cart-item-options">
+                      {item.selectedOptions.map((option) => (
+                        <li key={`${item.uid}-${option.id}`}>
+                          <span className="cart-item-option-label">{option.label}:</span> {option.value}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   <p>${item.price.toFixed(2)}</p>
                 </div>
                 <div className="cart-item-quantity">
-                  <button type="button" onClick={() => handleQuantityChange(item.id, -1)}>
+                  <button type="button" onClick={() => handleQuantityChange(item.uid, -1)}>
                     -
                   </button>
                   <span>{item.quantity}</span>
-                  <button type="button" onClick={() => handleQuantityChange(item.id, 1)}>
+                  <button type="button" onClick={() => handleQuantityChange(item.uid, 1)}>
                     +
                   </button>
                 </div>
-                <button className="remove-item" type="button" onClick={() => handleRemove(item.id)}>
+                <button className="remove-item" type="button" onClick={() => handleRemove(item.uid)}>
                   <i className="fas fa-trash" aria-hidden="true" />
                   <span className="sr-only">Eliminar</span>
                 </button>
@@ -95,6 +104,3 @@ export default function CartModal({
     </div>
   );
 }
-
-
-

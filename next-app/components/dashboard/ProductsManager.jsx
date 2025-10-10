@@ -2,6 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+const slugifyKey = (value, fallback = "") =>
+  (value ?? "")
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "") || fallback;
+
 const ensureGallery = (values = []) =>
   Array.from({ length: 3 }, (_, index) => {
     const value = values[index];
@@ -30,7 +39,16 @@ const emptyProduct = (categories) => ({
   mainImage: "",
   mainImageFile: null,
   gallery: ["", "", ""],
-  galleryFiles: [null, null, null]
+  galleryFiles: [null, null, null],
+  variantEnabled: false,
+  variantOptions: {
+    options: [
+      { id: "talla", label: "Talla", values: [] },
+      { id: "color", label: "Color", values: [] }
+    ],
+    variants: []
+  },
+  variantStockMap: {}
 });
 
 export default function ProductsManager({ initialProducts, categories }) {
@@ -84,6 +102,29 @@ export default function ProductsManager({ initialProducts, categories }) {
 
   const handleSelect = (product) => {
     const mapped = formatProduct(product);
+    // Normalize variant options from product (if any)
+    const existingVariant = product?.variantOptions && typeof product.variantOptions === "object"
+      ? product.variantOptions
+      : { enabled: false, options: [], variants: [] };
+    const options = Array.isArray(existingVariant.options) && existingVariant.options.length > 0
+      ? existingVariant.options.slice(0, 2).map((opt, idx) => ({
+          id: opt.id || slugifyKey(opt.label, `option-${idx + 1}`),
+          label: opt.label || `Opción ${idx + 1}`,
+          values: Array.isArray(opt.values) ? opt.values : []
+        }))
+      : [
+          { id: "talla", label: "Talla", values: [] },
+          { id: "color", label: "Color", values: [] }
+        ];
+    const variantStockMap = {};
+    if (Array.isArray(existingVariant.variants)) {
+      existingVariant.variants.forEach((v) => {
+        const key = options
+          .map((o) => `${o.id}:${v?.values?.[o.id] ?? ""}`)
+          .join("|");
+        variantStockMap[key] = Number(v?.stock ?? 0) || 0;
+      });
+    }
     setForm({
       id: mapped.id,
       name: mapped.name,
@@ -95,7 +136,10 @@ export default function ProductsManager({ initialProducts, categories }) {
       mainImage: mapped.mainImage ?? "",
       mainImageFile: null,
       gallery: ensureGallery(mapped.gallery),
-      galleryFiles: [null, null, null]
+      galleryFiles: [null, null, null],
+      variantEnabled: Boolean(existingVariant.enabled) && Array.isArray(existingVariant.variants) && existingVariant.variants.length > 0,
+      variantOptions: { options, variants: existingVariant.variants || [] },
+      variantStockMap
     });
     setStatus("");
     setModalOpen(true);
@@ -150,6 +194,74 @@ export default function ProductsManager({ initialProducts, categories }) {
     });
   };
 
+  const handleToggleVariants = (event) => {
+    const enabled = event.target.checked;
+    setForm((prev) => ({ ...prev, variantEnabled: enabled }));
+  };
+
+  const handleOptionLabelChange = (index) => (event) => {
+    const label = event.target.value;
+    setForm((prev) => {
+      const options = [...(prev.variantOptions?.options ?? [])];
+      const current = { ...(options[index] ?? {}) };
+      const id = slugifyKey(current.id || label || `option-${index + 1}`, `option-${index + 1}`);
+      options[index] = { id, label, values: Array.isArray(current.values) ? current.values : [] };
+      return { ...prev, variantOptions: { ...prev.variantOptions, options } };
+    });
+  };
+
+  const handleOptionValuesChange = (index) => (event) => {
+    const raw = event.target.value || "";
+    const values = raw
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean)
+      .filter((v, i, arr) => arr.indexOf(v) === i);
+    setForm((prev) => {
+      const options = [...(prev.variantOptions?.options ?? [])];
+      const current = { ...(options[index] ?? {}) };
+      const id = slugifyKey(current.id || current.label || `option-${index + 1}`, `option-${index + 1}`);
+      options[index] = { id, label: current.label || `Opción ${index + 1}`, values };
+      return { ...prev, variantOptions: { ...prev.variantOptions, options } };
+    });
+  };
+
+  const getOptionValuesCSV = (index) => {
+    const options = form.variantOptions?.options ?? [];
+    const current = options[index];
+    return Array.isArray(current?.values) ? current.values.join(", ") : "";
+  };
+
+  const listCombinations = () => {
+    const options = form.variantOptions?.options ?? [];
+    const [optA = null, optB = null] = options;
+    const valuesA = Array.isArray(optA?.values) ? optA.values : [];
+    const valuesB = Array.isArray(optB?.values) ? optB.values : [];
+    const combos = [];
+    if (valuesA.length > 0 && valuesB.length > 0) {
+      valuesA.forEach((a) => {
+        valuesB.forEach((b) => {
+          combos.push({ key: `${optA.id}:${a}|${optB.id}:${b}`, parts: [{ label: optA.label, value: a }, { label: optB.label, value: b }] });
+        });
+      });
+    } else if (valuesA.length > 0) {
+      valuesA.forEach((a) => {
+        combos.push({ key: `${optA.id}:${a}`, parts: [{ label: optA.label, value: a }] });
+      });
+    }
+    return combos;
+  };
+
+  const computedTotalVariantStock = useMemo(() => {
+    if (!form.variantEnabled) return 0;
+    return Object.values(form.variantStockMap || {}).reduce((sum, v) => sum + (Number(v) || 0), 0);
+  }, [form.variantEnabled, form.variantStockMap]);
+
+  const handleVariantStockChange = (key) => (event) => {
+    const value = Math.max(0, Math.floor(Number(event.target.value || 0)));
+    setForm((prev) => ({ ...prev, variantStockMap: { ...(prev.variantStockMap || {}), [key]: value } }));
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setSaving(true);
@@ -162,7 +274,49 @@ export default function ProductsManager({ initialProducts, categories }) {
       formData.append("name", form.name);
       formData.append("slug", form.slug ?? "");
       formData.append("price", form.price ?? "0");
-      formData.append("stock", form.stock ?? "0");
+      // Build variant options payload if enabled
+      let totalVariantStock = 0;
+      if (form.variantEnabled) {
+        const opts = Array.isArray(form.variantOptions?.options)
+          ? form.variantOptions.options.filter((o) => Array.isArray(o.values) && o.values.length > 0)
+          : [];
+        // Generate combinations
+        const [optA = null, optB = null] = opts;
+        const valuesA = optA ? optA.values : [];
+        const valuesB = optB ? optB.values : [];
+        const variants = [];
+        if (valuesA.length > 0 && valuesB.length > 0) {
+          valuesA.forEach((a) => {
+            valuesB.forEach((b) => {
+              const key = `${optA.id}:${a}|${optB.id}:${b}`;
+              const stock = Number(form.variantStockMap?.[key] ?? 0) || 0;
+              if (stock > 0) {
+                variants.push({ values: { [optA.id]: a, [optB.id]: b }, stock });
+                totalVariantStock += stock;
+              }
+            });
+          });
+        } else if (valuesA.length > 0) {
+          valuesA.forEach((a) => {
+            const key = `${optA.id}:${a}`;
+            const stock = Number(form.variantStockMap?.[key] ?? 0) || 0;
+            if (stock > 0) {
+              variants.push({ values: { [optA.id]: a }, stock });
+              totalVariantStock += stock;
+            }
+          });
+        }
+
+        const variantOptionsPayload = {
+          enabled: variants.length > 0,
+          options: opts,
+          variants
+        };
+        formData.append("variantOptionsJson", JSON.stringify(variantOptionsPayload));
+        formData.append("stock", String(totalVariantStock));
+      } else {
+        formData.append("stock", form.stock ?? "0");
+      }
       formData.append("category", form.category ?? "");
       formData.append("description", form.description ?? "");
 
@@ -196,7 +350,7 @@ export default function ProductsManager({ initialProducts, categories }) {
         name: form.name,
         slug: data.product.slug,
         price: Number(form.price ?? 0),
-        stock: Number(form.stock ?? 0),
+        stock: form.variantEnabled ? (Number(data.product?.variantOptions?.variants?.reduce?.((s, v) => s + (v?.stock ?? 0), 0) ?? 0)) : Number(form.stock ?? 0),
         category: form.category,
         description: form.description,
         mainImage: data.product.mainImage ?? "",
@@ -380,10 +534,91 @@ export default function ProductsManager({ initialProducts, categories }) {
                 type="number"
                 min="0"
                 step="1"
-                value={form.stock}
+                value={form.variantEnabled ? computedTotalVariantStock : form.stock}
                 onChange={handleField("stock")}
+                disabled={form.variantEnabled}
                 required
               />
+
+              <div className="variant-section">
+                <div className="variant-header">
+                  <label className="panel-checkbox">
+                    <input type="checkbox" checked={form.variantEnabled} onChange={handleToggleVariants} />
+                    <span>Administrar stock por tallas y colores</span>
+                  </label>
+                  {form.variantEnabled && (
+                    <p className="panel-hint">Define valores y stock por combinación. El stock total se calcula automáticamente.</p>
+                  )}
+                </div>
+
+                {form.variantEnabled && (
+                  <div className="variant-editor">
+                    <div className="variant-options-grid">
+                      <div className="variant-option">
+                        <label className="panel-label">Opción 1 (por ejemplo, Talla)</label>
+                        <input
+                          className="panel-input"
+                          value={form.variantOptions?.options?.[0]?.label ?? "Talla"}
+                          onChange={handleOptionLabelChange(0)}
+                          placeholder="Talla"
+                        />
+                        <label className="panel-label">Valores (separados por coma)</label>
+                        <input
+                          className="panel-input"
+                          value={getOptionValuesCSV(0)}
+                          onChange={handleOptionValuesChange(0)}
+                          placeholder="XS, S, M, L, XL"
+                        />
+                      </div>
+
+                      <div className="variant-option">
+                        <label className="panel-label">Opción 2 (por ejemplo, Color)</label>
+                        <input
+                          className="panel-input"
+                          value={form.variantOptions?.options?.[1]?.label ?? "Color"}
+                          onChange={handleOptionLabelChange(1)}
+                          placeholder="Color"
+                        />
+                        <label className="panel-label">Valores (separados por coma)</label>
+                        <input
+                          className="panel-input"
+                          value={getOptionValuesCSV(1)}
+                          onChange={handleOptionValuesChange(1)}
+                          placeholder="Rojo, Azul, Negro"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="variant-combinations">
+                      <h3 className="product-media-title">Stock por combinación</h3>
+                      {listCombinations().length === 0 ? (
+                        <p className="panel-hint">Agrega valores en las opciones para generar combinaciones.</p>
+                      ) : (
+                        <div className="variant-table">
+                          {listCombinations().map((combo) => (
+                            <div key={combo.key} className="variant-row">
+                              <div className="variant-labels">
+                                {combo.parts.map((p) => (
+                                  <span key={`${combo.key}-${p.label}-${p.value}`} className="variant-chip">{p.label}: {p.value}</span>
+                                ))}
+                              </div>
+                              <input
+                                type="number"
+                                className="panel-input variant-stock-input"
+                                min="0"
+                                step="1"
+                                value={form.variantStockMap?.[combo.key] ?? 0}
+                                onChange={handleVariantStockChange(combo.key)}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <p className="panel-hint">Stock total: {computedTotalVariantStock}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <label className="panel-label" htmlFor="product-category">
                 Categoria

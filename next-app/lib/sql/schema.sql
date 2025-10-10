@@ -1,4 +1,4 @@
--- Esquema base para autenticación y administración de la tienda
+-- Esquema base para autenticaciÃ³n y administraciÃ³n de la tienda
 
 CREATE TABLE IF NOT EXISTS users (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS products (
     gallery_image_1 VARCHAR(255) NULL,
     gallery_image_2 VARCHAR(255) NULL,
     gallery_image_3 VARCHAR(255) NULL,
+    variant_options JSON NULL,
     active TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL
@@ -66,6 +67,7 @@ CREATE TABLE IF NOT EXISTS order_items (
     product_id INT UNSIGNED NOT NULL,
     quantity INT UNSIGNED NOT NULL,
     unit_price DECIMAL(10,2) NOT NULL,
+    selected_options JSON NULL,
     CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
     CONSTRAINT fk_order_items_product FOREIGN KEY (product_id) REFERENCES products(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -78,3 +80,4 @@ CREATE TABLE IF NOT EXISTS customer_segments (
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+

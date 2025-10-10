@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCart } from "@/components/CartContext";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -41,14 +41,26 @@ export default function CheckoutModal({
       return "¡Hola! Me gustaría conocer más sobre sus productos.";
     }
 
-    const lines = ["¡Hola! Me gustaría realizar el siguiente pedido:", ""]; // blank line
+    const lines = ["¡Hola! Me gustaría realizar el siguiente pedido:", ""];
 
     cart.forEach((item) => {
-      const itemTotal = (item.price * item.quantity).toFixed(2);
-      lines.push(`• ${item.name} x${item.quantity} - $${itemTotal}`);
+      const unitPrice = item.price.toFixed(2);
+      const subtotal = (item.price * item.quantity).toFixed(2);
+      lines.push(`- ${item.name}`);
+      if (item.selectedOptions?.length) {
+        item.selectedOptions.forEach((option) => {
+          lines.push(`   * ${option.label}: ${option.value}`);
+        });
+      }
+      lines.push(`   * Cantidad: ${item.quantity}`);
+      lines.push(`   * Precio unitario: $${unitPrice}`);
+      lines.push(`   * Subtotal: $${subtotal}`);
+      lines.push("");
     });
 
-    lines.push("", `TOTAL: $${cartTotal.toFixed(2)}`, "", "Por favor, quisiera coordinar el pago y envío.");
+    lines.push(`Total: $${cartTotal.toFixed(2)}`);
+    lines.push("");
+    lines.push("¿Me ayudas con el pago y envío?");
 
     return lines.join("\n");
   }, [cart, cartTotal]);
@@ -92,10 +104,21 @@ export default function CheckoutModal({
           {cart.map((item) => {
             const itemTotal = (item.price * item.quantity).toFixed(2);
             return (
-              <div className="checkout-product" key={item.id}>
-                <span className="checkout-product-name">{item.name}</span>
-                <span className="checkout-product-qty">x{item.quantity}</span>
-                <span className="checkout-product-price">${itemTotal}</span>
+              <div className="checkout-product" key={item.uid}>
+                <div className="checkout-product-row">
+                  <span className="checkout-product-name">{item.name}</span>
+                  <span className="checkout-product-qty">x{item.quantity}</span>
+                  <span className="checkout-product-price">${itemTotal}</span>
+                </div>
+                {item.selectedOptions?.length > 0 && (
+                  <ul className="checkout-product-options">
+                    {item.selectedOptions.map((option) => (
+                      <li key={`${item.uid}-${option.id}`}>
+                        <span className="checkout-product-option-label">{option.label}:</span> {option.value}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             );
           })}
@@ -139,6 +162,3 @@ export default function CheckoutModal({
     </div>
   );
 }
-
-
-
